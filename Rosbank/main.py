@@ -10,8 +10,12 @@ from scipy.sparse import csr_matrix, hstack
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
+from tqdm import tqdm
+
 from tools import write_submission
 from imblearn.over_sampling import ADASYN
+from currency_converter import CurrencyConverter
+from datetime import date
 
 # load data
 path_to_data = 'data/'
@@ -24,6 +28,7 @@ X_train = train.drop(columns = ['target_flag', 'target_sum'], axis = 1)
 
 #preprocessing
 def preprocessing(df):
+    df.index = range(len(df))
     # date preprocess
     #df['year'] = df['PERIOD'].map(lambda x: datetime.strptime(x, "%d/%m/%Y").year)
     df['month'] = df['PERIOD'].map(lambda x: datetime.strptime(x, "%d/%m/%Y").month)
@@ -38,6 +43,15 @@ def preprocessing(df):
 
     df.drop(columns=['PERIOD','TRDATETIME', 'cl_id'], axis=1, inplace=True)
 
+    c = CurrencyConverter(os.path.join(path_to_data,'eurofxref-hist.csv'))
+    codes = pd.read_csv(os.path.join(path_to_data,'codes.csv'))
+    codes.fillna(0,inplace=True)
+    codes.currency_code = codes.currency_code.apply(int)
+    amount = []
+    for i in tqdm(range(len(df['amount']))):
+        amount.append(c.convert(df['amount'][i], codes[codes['currency_code']==df['currency'][i]]['currency_ABC'].values[0], 'USD'))
+    df['amount'] = amount
+
     date_columns = ['month','TR_year','TR_month','TR_day','TR_day_of_week','TR_hour']
     for i in date_columns:
         df[i] = StandardScaler().fit_transform(df[i].reshape(-1,1))
@@ -46,6 +60,7 @@ def preprocessing(df):
     df['balance'] = df['trx_category'].map({'POS': -1, 'C2C_OUT': -1, 'C2C_IN': 1, 'DEPOSIT': 1, 'WD_ATM_PARTNER': -1,
                                             'WD_ATM_ROS': -1, 'WD_ATM_OTHER': -1, 'BACK_TRX': 1,'CAT': 1, 'CASH_ADV': -1}) * df.amount
     df = df.fillna('type')
+
     return df
 
 data = preprocessing(pd.concat([X_train,X_test]))
@@ -63,8 +78,6 @@ data_currency = oe.fit_transform(data['currency'].values.reshape(-1,1))
 
 data['trx_category'] = le.fit_transform(data['trx_category'])
 data_trx_category = oe.fit_transform(data['trx_category'].values.reshape(-1,1))
-
-
 
 train = csr_matrix(hstack([data['amount'].values.reshape(-1,1), data_MCC, data_chanel_type, data_currency, data_trx_category]))[:target.shape[0]]
 X_test = csr_matrix(hstack([data['amount'].values.reshape(-1,1), data_MCC, data_chanel_type, data_currency, data_trx_category]))[target.shape[0]:]
