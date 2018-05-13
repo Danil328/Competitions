@@ -95,3 +95,42 @@ lr.fit(X_train, y_train)
 pred = lr.predict_proba(X_val)[:,-1]
 print (roc_auc_score(y_val, pred))
 # write_submission(pred, 'sub/1.csv')
+
+import lightgbm as lgb
+
+lgb_train = lgb.Dataset(X_train, y_train)
+lgb_eval = lgb.Dataset(X_val, y_val, reference=lgb_train)
+
+params = {
+    #'max_depth': 8,
+    'task': 'train',
+    'boosting_type': 'gbdt',
+    'objective': 'binary',
+    'is_unbalance' : True,
+    'metric': {'l2', 'auc'},
+    'lambda_l2' : 1,
+    'num_leaves': 31,
+    'learning_rate': 0.05,
+    'feature_fraction': 0.9,
+    'bagging_fraction': 0.8,
+    'bagging_freq': 5,
+    'verbose': 0
+}
+
+print('Start training...')
+# train
+gbm = lgb.train(params,
+                lgb_train,
+                num_boost_round=300,
+                valid_sets=lgb_eval,
+                early_stopping_rounds=21)
+
+print('Save model...')
+# save model to file
+gbm.save_model('model.txt')
+
+print('Start predicting...')
+# predict
+y_pred = gbm.predict(X_test, num_iteration=gbm.best_iteration)
+# eval
+print('The rmse of prediction is:', mean_squared_error(y_test, y_pred) ** 0.5)
