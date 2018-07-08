@@ -4,12 +4,11 @@ from sklearn.model_selection import train_test_split, cross_val_score, Stratifie
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, Normalizer, MinMaxScaler
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 
 from tools import base_preprocassing, dict_vect_preprocessing, tfidf_preprocessing, split_train_test
 
-ACTION = 'train'
+ACTION = 'cloud'
 PATH = './data/'
 
 if ACTION=='train':
@@ -34,7 +33,7 @@ if ACTION=='train':
     X_test = n.transform(X_test)
 
     lr = LogisticRegression(penalty='l2', C=0.2,solver='lbfgs')
-    lr = SGDClassifier()
+    #lr = SGDClassifier(loss='log')
     sf = StratifiedKFold(n_splits=5, shuffle=True, random_state=17)
     cv = cross_val_score(lr,X_train, y_train, scoring='roc_auc', cv=sf, n_jobs=-1)
     print (cv.mean(), cv.std())
@@ -114,38 +113,28 @@ elif ACTION=='union':
     union_df = union_df.groupby(['cuid'])['target'].mean()
     predicts = test_id.set_index('cuid').join(union_df, on='cuid', how='inner')
     predicts.to_csv(os.path.join(path,'union.csv'), index=False, header=False)
+elif ACTION == 'cloud':
+    test_id = pd.read_csv(os.path.join(PATH,'mlboot_test.tsv'), delimiter='\t')
+    print ('read data')
+    df = pd.read_csv(os.path.join(PATH,'train.csv'))
 
-#split_train_test(PATH)
+    df = dict_vect_preprocessing(df)
+    df = df.convert_objects(convert_numeric=True)
 
-#TRAIN
-#test_id = pd.read_csv(os.path.join(PATH,'mlboot_test.tsv'), delimiter='\t')
+    lr = LogisticRegression(penalty='l2', solver='lbfgs', C=0.2)
+    n = Normalizer()
+    print ('train')
+    lr.fit(n.fit_transform(df.drop(axis=1, columns=['cuid','target'])), df['target'])
 
-# step = 3000000
-# lr = LogisticRegression(penalty='l2', C=0.2,solver='lbfgs', warm_start=True)
-# n = Normalizer()
-#
-# for part, nrow in tqdm(enumerate(range(1,12874345,step))):
-#     df = pd.read_csv(os.path.join(PATH,'train.csv'), nrows=step, skiprows=range(1,nrow))
-#
-#     df = dict_vect_preprocessing(df)
-#     df = df.convert_objects(convert_numeric=True)
-#
-#     lr.fit(n.fit_transform(df.drop(axis=1, columns=['cuid','target'])), df['target'])
-#
-#
-# import  pickle
-# # save the model to disk
-# filename = 'lr.sav'
-# pickle.dump(lr, open(filename, 'wb'))
-#
-# # some time later...
-#
-# # load the model from disk
-# loaded_model = pickle.load(open(filename, 'rb'))
-# result = loaded_model.score(X_test, Y_test)
-# print(result)
-#
-# df = pd.read_csv(os.path.join(PATH,'test.csv'))
-#
-# df = dict_vect_preprocessing(df,is_train=False)
-# df = df.convert_objects(convert_numeric=True)
+    print ('test')
+    df = pd.read_csv(os.path.join(PATH,'test.csv'))
+    df = n.transform(dict_vect_preprocessing(df, is_train=False))
+
+    pred = lr.predict_proba(df.drop(axis=1, columns=['cuid']))
+    out_df = pd.DataFrame()
+    out_df['cuid'] = df.cuid
+    out_df['target'] = pred[:, 1]
+    #out_df.to_csv(os.path.join(PATH,'predict_test.csv'))
+
+    predicts = test_id.set_index('cuid').join(out_df, on='cuid', how='inner')
+    predicts.to_csv(os.path.join(PATH,'predict_test.csv'), index=False, header=False)
