@@ -8,7 +8,7 @@ from sklearn.linear_model import LogisticRegression, SGDClassifier
 
 from tools import base_preprocassing, dict_vect_preprocessing, tfidf_preprocessing, split_train_test
 
-ACTION = 'cloud'
+ACTION = 'claoud'
 PATH = './data/'
 
 if ACTION=='train':
@@ -25,7 +25,7 @@ if ACTION=='train':
     df = dict_vect_preprocessing(df)
     df = df.convert_objects(convert_numeric=True)
 
-    #try
+    #tr
     X_train, X_test, y_train, y_test = train_test_split(df.drop(axis=1, columns=['cuid','target']),df.target, test_size=0.2, random_state=17)
 
     n = Normalizer()
@@ -101,7 +101,7 @@ elif ACTION == 'predict':
         ans_df['target'] = scaler.fit_transform(lr.predict_proba(X_test)[:, 1].reshape(-1,1))
 
         ans_df.to_csv(os.path.join('submission','submission_part{}.csv'.format(part)), index=False)
-elif ACTION=='union':
+elif ACTION == 'union':
     test_id = pd.read_csv(os.path.join(PATH,'mlboot_test.tsv'), delimiter='\t')
     union_df = pd.DataFrame(columns=['cuid','target'])
     path = './submission'
@@ -116,25 +116,31 @@ elif ACTION=='union':
 elif ACTION == 'cloud':
     test_id = pd.read_csv(os.path.join(PATH,'mlboot_test.tsv'), delimiter='\t')
     print ('read data')
-    df = pd.read_csv(os.path.join(PATH,'train.csv'))
+    df = pd.read_csv(os.path.join(PATH,'train.csv'), nrows=7000000)
 
+    print ('preprocessing')
     df = dict_vect_preprocessing(df)
     df = df.convert_objects(convert_numeric=True)
-
+    print ('train')
     lr = LogisticRegression(penalty='l2', solver='lbfgs', C=0.2)
     n = Normalizer()
-    print ('train')
     lr.fit(n.fit_transform(df.drop(axis=1, columns=['cuid','target'])), df['target'])
 
-    print ('test')
+    print ('read test')
     df = pd.read_csv(os.path.join(PATH,'test.csv'))
-    df = n.transform(dict_vect_preprocessing(df, is_train=False))
 
-    pred = lr.predict_proba(df.drop(axis=1, columns=['cuid']))
+    print ('process test')
+    df = dict_vect_preprocessing(df, is_train=False)
+    df = df.convert_objects(convert_numeric=True)
+
     out_df = pd.DataFrame()
     out_df['cuid'] = df.cuid
-    out_df['target'] = pred[:, 1]
-    #out_df.to_csv(os.path.join(PATH,'predict_test.csv'))
 
-    predicts = test_id.set_index('cuid').join(out_df, on='cuid', how='inner')
-    predicts.to_csv(os.path.join(PATH,'predict_test.csv'), index=False, header=False)
+    print ('predict test')
+    df = n.transform(df.drop(axis=1, columns=['cuid']))
+    pred = lr.predict_proba(df)
+    out_df['target'] = pred[:, 1]
+
+    predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
+    predicts['target'].to_csv(os.path.join(PATH,'predict_test.csv'), index=False, header=False)
+
