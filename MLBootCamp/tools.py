@@ -57,7 +57,7 @@ def base_preprocassing(df):
 
     return df_base
 
-def dict_vect_preprocessing(df, is_train=True):
+def dict_vect_preprocessing(df, dict, svd, is_train=True):
     df = df.sort_values(['data_diff'], ascending = True)
     df_dict = pd.DataFrame()
     df_dict['cuid'] = df.groupby(['cuid'])['cuid'].min()
@@ -80,17 +80,24 @@ def dict_vect_preprocessing(df, is_train=True):
     df_dict['cnt3'] = df.groupby(['cuid'])['cnt3'].sum().apply(lambda x: x[:-1] if (len(x)>0 and x[-1]==',') else x)
     df_dict['cnt3'] = df_dict['cnt3'].apply(lambda x: json.loads('{'+x+'}'))
 
-    dv = DictVectorizer(separator=':')
-    dv_cnt1 = dv.fit_transform(df_dict['cnt1'])
-    dv_cnt2 = dv.fit_transform(df_dict['cnt2'])
-    dv_cnt3 = dv.fit_transform(df_dict['cnt3'])
+    if is_train:
+        dv_cnt1 = dict[0].fit_transform(df_dict['cnt1'])
+        dv_cnt2 = dict[1].fit_transform(df_dict['cnt2'])
+        dv_cnt3 = dict[2].fit_transform(df_dict['cnt3'])
 
-    svd = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
-    dv_cnt1 = svd.fit_transform(dv_cnt1)
-    dv_cnt2 = svd.fit_transform(dv_cnt2)
-    dv_cnt3 = svd.fit_transform(dv_cnt3)
+        dv_cnt1 = svd[0].fit_transform(dv_cnt1)
+        dv_cnt2 = svd[1].fit_transform(dv_cnt2)
+        dv_cnt3 = svd[2].fit_transform(dv_cnt3)
+    else:
+        dv_cnt1 = dict[0].transform(df_dict['cnt1'])
+        dv_cnt2 = dict[1].transform(df_dict['cnt2'])
+        dv_cnt3 = dict[2].transform(df_dict['cnt3'])
 
-    return pd.DataFrame(np.hstack([df_dict[cols].values.reshape(-1,len(cols)),dv_cnt1,dv_cnt2,dv_cnt3]), columns=cols+list(range(dv_cnt1.shape[1]*3)))
+        dv_cnt1 = svd[0].transform(dv_cnt1)
+        dv_cnt2 = svd[1].transform(dv_cnt2)
+        dv_cnt3 = svd[2].transform(dv_cnt3)
+
+    return pd.DataFrame(np.hstack([df_dict[cols].values.reshape(-1,len(cols)),dv_cnt1,dv_cnt2,dv_cnt3]), columns=cols+list(range(dv_cnt1.shape[1]*3))), dict, svd
 
 def tfidf_preprocessing(df, is_train=True):
     #Номер счетчика + значение
