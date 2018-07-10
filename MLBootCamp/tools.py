@@ -12,27 +12,23 @@ from tqdm import tqdm
 gc.enable()
 
 def base_preprocassing(df):
-    #Заполненность счетчиков
     df['cnt1_is_not_null'] = df['cnt1'].apply(lambda x: 0 if x == "{}" else 1)
     df['cnt2_is_not_null'] = df['cnt2'].apply(lambda x: 0 if x == "{}" else 1)
     df['cnt3_is_not_null'] = df['cnt3'].apply(lambda x: 0 if x == "{}" else 1)
-    #Достанем кол-во счетчиков в признаке
     df['count_cnt1'] = df['cnt1'].map(lambda x: len(list(json.loads(x).values())))
     df['count_cnt2'] = df['cnt2'].map(lambda x: len(list(json.loads(x).values())))
     df['count_cnt3'] = df['cnt3'].map(lambda x: len(list(json.loads(x).values())))
-    #Сумма счетчиков в признаке
     df['sum_cnt1'] = df['cnt1'].map(lambda x: np.sum(list(json.loads(x).values())))
     df['sum_cnt2'] = df['cnt2'].map(lambda x: np.sum(list(json.loads(x).values())))
     df['sum_cnt3'] = df['cnt3'].map(lambda x: np.sum(list(json.loads(x).values())))
 
-    #Группируем данные
     df_base = pd.DataFrame()
+    df_base['target'] = df.groupby(['cuid'])['target'].min()
     df_base['max_data_diff'] = df.groupby(['cuid'])['data_diff'].max()
     df_base['min_data_diff'] = df.groupby(['cuid'])['data_diff'].min()
     df_base['mean_data_diff'] = df.groupby(['cuid'])['data_diff'].mean()
     df_base['delta_data_diff'] = df.groupby(['cuid'])['data_diff'].max() - df.groupby(['cuid'])['data_diff'].min()
 
-    #Кол-во счетчиков в признаке
     df_base['max_count_cnt1'] = df.groupby(['cuid'])['count_cnt1'].max()
     df_base['max_count_cnt2'] = df.groupby(['cuid'])['count_cnt2'].max()
     df_base['max_count_cnt3'] = df.groupby(['cuid'])['count_cnt3'].max()
@@ -42,7 +38,6 @@ def base_preprocassing(df):
     df_base['mean_count_cnt1'] = df.groupby(['cuid'])['count_cnt1'].mean()
     df_base['mean_count_cnt2'] = df.groupby(['cuid'])['count_cnt2'].mean()
     df_base['mean_count_cnt3'] = df.groupby(['cuid'])['count_cnt3'].mean()
-    #Сумма счетчиков в признаке
     df_base['max_sum_cnt1'] = df.groupby(['cuid'])['sum_cnt1'].max()
     df_base['max_sum_cnt2'] = df.groupby(['cuid'])['sum_cnt2'].max()
     df_base['max_sum_cnt3'] = df.groupby(['cuid'])['sum_cnt3'].max()
@@ -99,8 +94,7 @@ def dict_vect_preprocessing(df, dict, svd, is_train=True):
 
     return pd.DataFrame(np.hstack([df_dict[cols].values.reshape(-1,len(cols)),dv_cnt1,dv_cnt2,dv_cnt3]), columns=cols+list(range(dv_cnt1.shape[1]*3))), dict, svd
 
-def tfidf_preprocessing(df, is_train=True):
-    #Номер счетчика + значение
+def tfidf_preprocessing(df, tfidf, svd, is_train=True):
     df = df.sort_values(['data_diff'], ascending = True)
     df_tfidf = pd.DataFrame()
     df_tfidf['cuid'] = df.groupby(['cuid'])['cuid'].min()
@@ -111,29 +105,31 @@ def tfidf_preprocessing(df, is_train=True):
     else:
         cols = ['cuid']
 
-    df_tfidf['target'] = df.groupby(['cuid'])['target'].min()
-
     df['cnt1'] = df['cnt1'].apply(lambda x: x[1:-1])
     df['cnt2'] = df['cnt2'].apply(lambda x: x[1:-1])
     df['cnt3'] = df['cnt3'].apply(lambda x: x[1:-1])
 
-    tokenizer = lambda doc: doc[1:-1].split(',')
-    tf_idf = TfidfVectorizer(tokenizer = tokenizer, max_df = 0.90, min_df = 0.01, ngram_range=(1,1))
-
     new_df_cnt1 = df.groupby(['cuid'])['cnt1'].sum()
     new_df_cnt2 = df.groupby(['cuid'])['cnt2'].sum()
     new_df_cnt3 = df.groupby(['cuid'])['cnt3'].sum()
+    if is_train:
+        new_df_cnt1 = tfidf[0].fit_transform(new_df_cnt1)
+        new_df_cnt2 = tfidf[1].fit_transform(new_df_cnt2)
+        new_df_cnt3 = tfidf[2].fit_transform(new_df_cnt3)
 
-    new_df_cnt1 = tf_idf.fit_transform(new_df_cnt1)
-    new_df_cnt2 = tf_idf.fit_transform(new_df_cnt2)
-    new_df_cnt3 = tf_idf.fit_transform(new_df_cnt3)
+        tf_idf_cnt1 = svd[0].fit_transform(new_df_cnt1)
+        tf_idf_cnt2 = svd[1].fit_transform(new_df_cnt2)
+        # tf_idf_cnt3 = svd[2].fit_transform(new_df_cnt3)
+    else:
+        new_df_cnt1 = tfidf[0].transform(new_df_cnt1)
+        new_df_cnt2 = tfidf[1].transform(new_df_cnt2)
+        new_df_cnt3 = tfidf[2].transform(new_df_cnt3)
 
-    svd = TruncatedSVD(n_components=150, random_state=17, n_iter=5)
-    tf_idf_cnt1 = svd.fit_transform(new_df_cnt1)
-    tf_idf_cnt2 = svd.fit_transform(new_df_cnt2)
-    #tf_idf_cnt3 = svd.fit_transform(new_df_cnt3)
+        tf_idf_cnt1 = svd[0].transform(new_df_cnt1)
+        tf_idf_cnt2 = svd[1].transform(new_df_cnt2)
+        # tf_idf_cnt3 = svd[2].transform(new_df_cnt3)
 
-    return pd.DataFrame(np.hstack([df_tfidf[cols].values.reshape(-1,len(cols)),tf_idf_cnt1,tf_idf_cnt2]), columns=cols+list(range(tf_idf_cnt1.shape[1]*2)))
+    return pd.DataFrame(np.hstack([df_tfidf[cols].values.reshape(-1,len(cols)),tf_idf_cnt1,tf_idf_cnt2]), columns=cols+list(range(tf_idf_cnt1.shape[1]*2))), tfidf, svd
 
 import os
 def split_train_test(PATH):
