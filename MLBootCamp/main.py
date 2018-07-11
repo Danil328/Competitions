@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, Normalizer, MinMaxScaler
@@ -7,7 +8,8 @@ from tqdm import tqdm
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression, SGDClassifier
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD, PCA
+from mlxtend.feature_selection import SequentialFeatureSelector as SFS
 
 from tools import base_preprocassing, dict_vect_preprocessing, tfidf_preprocessing, split_train_test
 
@@ -16,28 +18,56 @@ PATH = './data/'
 
 if ACTION=='train':
 
-    #read data
-    df = pd.read_csv(os.path.join(PATH, 'train_sample.csv'), nrows=1000000)
-    # df = df.join(pd.read_csv(os.path.join(PATH,'mlboot_train_answers.tsv'), delimiter='\t').set_index('cuid'), on='cuid', how='inner')
+    print('read data')
+    #df = pd.read_csv(os.path.join(PATH, 'train_sample.csv'), nrows=1000000)
 
-    # df = pd.read_csv(os.path.join(PATH,'mlboot_data.tsv'), delimiter='\t', nrows=300000, header=None)
-    df.columns = ['cuid', 'cat', 'cnt1','cnt2','cnt3','data_diff']
+    df = pd.read_csv(os.path.join(PATH,'mlboot_data.tsv'), delimiter='\t', nrows=2000000, header=None)
+    df.columns = ['cuid', 'cat', 'cnt1','cnt2','cnt3','date_diff']
     df = df.join(pd.read_csv(os.path.join(PATH,'mlboot_train_answers.tsv'), delimiter='\t').set_index('cuid'), on='cuid', how='inner')
 
-    #preprocess
-    df = base_preprocassing(df)
+    print('preprocess')
+    ohe_cat = OneHotEncoder(sparse=False)
+    df, ohe_cat = base_preprocassing(df, ohe_cat)
     df = df.convert_objects(convert_numeric=True)
 
-    #tr
+    print('main part')
     X_train, X_test, y_train, y_test = train_test_split(df.drop(axis=1, columns=['cuid','target']),df.target, test_size=0.2, random_state=17)
 
-    n = Normalizer()
+    # pca = PCA(n_components=15)
+    n = StandardScaler()
     X_train = n.fit_transform(X_train)
     X_test = n.transform(X_test)
 
-    lr = LogisticRegression(penalty='l2', C=0.2,solver='lbfgs')
-    #lr = SGDClassifier(loss='log')
-    sf = StratifiedKFold(n_splits=5, shuffle=True, random_state=17)
+    lr = LogisticRegression(penalty='l2', C=0.3, solver='lbfgs')
+    sbfs = SFS(lr,
+               k_features=11,
+               forward=False,
+               floating=True,
+               scoring='roc_auc',
+               cv=5,
+               n_jobs=-1,
+               verbose=1)
+
+    sbfs = sbfs.fit(X_train, y_train)
+
+    print('\nSequential Backward Floating Selection (k=3):')
+    print(sbfs.k_feature_idx_)
+    print('CV Score:')
+    print(sbfs.k_score_)
+
+    # Index(['1_sum', '2_sum', '5_sum', '3_min', 'max_date_diff', 'max_count_cnt3',
+    #        'mean_sum_cnt1', 'mean_sum_cnt2', 'mean_sum_cnt3', 'cat_min_le'],dtype='object')
+
+    X_train, X_test, y_train, y_test = train_test_split(df[df.columns[[[*map(lambda x: x+2,sbfs.k_feature_idx_)]]]], df.target,
+                                                        test_size=0.2, random_state=17)
+
+    n = StandardScaler()
+    X_train = n.fit_transform(X_train)
+    X_test = n.transform(X_test)
+
+    lr = LogisticRegression(penalty='l2', C=0.2, solver='lbfgs')
+    # lr = SGDClassifier(loss='log', penalty='elasticnet', l1_ratio = 0.15, random_state=17,class_weight={0:0.4, 1:0.6})
+    sf = StratifiedKFold(n_splits=10, shuffle=True, random_state=17)
     cv = cross_val_score(lr,X_train, y_train, scoring='roc_auc', cv=sf, n_jobs=-1)
     print (cv.mean(), cv.std())
     lr.fit(X_train,y_train)
@@ -45,7 +75,6 @@ if ACTION=='train':
     print (roc_auc_score(y_test,pred[:, 1]))
 
     # from evolutionary_search import EvolutionaryAlgorithmSearchCV
-    #
     # paramgrid = {"solver": ["liblinear", 'lbfgs'],
     #              "C"     : np.arange(0.1,1,0.1),
     #              "penalty" : ['l2']}
@@ -55,7 +84,7 @@ if ACTION=='train':
     #                                    scoring="roc_auc",
     #                                    cv=StratifiedKFold(n_splits=5),
     #                                    verbose=1,
-    #                                    population_size=50,
+    #                                    population_size=100,
     #                                    gene_mutation_prob=0.10,
     #                                    gene_crossover_prob=0.5,
     #                                    tournament_size=3,
