@@ -38,32 +38,32 @@ if ACTION=='train':
     X_train = n.fit_transform(X_train)
     X_test = n.transform(X_test)
 
-    lr = LogisticRegression(penalty='l2', C=0.3, solver='lbfgs')
-    sbfs = SFS(lr,
-               k_features=11,
-               forward=False,
-               floating=True,
-               scoring='roc_auc',
-               cv=5,
-               n_jobs=-1,
-               verbose=1)
-
-    sbfs = sbfs.fit(X_train, y_train)
-
-    print('\nSequential Backward Floating Selection (k=3):')
-    print(sbfs.k_feature_idx_)
-    print('CV Score:')
-    print(sbfs.k_score_)
-
-    # Index(['1_sum', '2_sum', '5_sum', '3_min', 'max_date_diff', 'max_count_cnt3',
-    #        'mean_sum_cnt1', 'mean_sum_cnt2', 'mean_sum_cnt3', 'cat_min_le'],dtype='object')
-
-    X_train, X_test, y_train, y_test = train_test_split(df[df.columns[[[*map(lambda x: x+2,sbfs.k_feature_idx_)]]]], df.target,
-                                                        test_size=0.2, random_state=17)
-
-    n = StandardScaler()
-    X_train = n.fit_transform(X_train)
-    X_test = n.transform(X_test)
+    # lr = LogisticRegression(penalty='l2', C=0.3, solver='lbfgs')
+    # sbfs = SFS(lr,
+    #            k_features=11,
+    #            forward=False,
+    #            floating=True,
+    #            scoring='roc_auc',
+    #            cv=5,
+    #            n_jobs=-1,
+    #            verbose=1)
+    #
+    # sbfs = sbfs.fit(X_train, y_train)
+    #
+    # print('\nSequential Backward Floating Selection (k=3):')
+    # print(sbfs.k_feature_idx_)
+    # print('CV Score:')
+    # print(sbfs.k_score_)
+    #
+    # # Index(['1_sum', '2_sum', '5_sum', '3_min', 'max_date_diff', 'max_count_cnt3',
+    # #        'mean_sum_cnt1', 'mean_sum_cnt2', 'mean_sum_cnt3', 'cat_min_le'],dtype='object')
+    #
+    # X_train, X_test, y_train, y_test = train_test_split(df[df.columns[[[*map(lambda x: x+2,sbfs.k_feature_idx_)]]]], df.target,
+    #                                                     test_size=0.2, random_state=17)
+    #
+    # n = StandardScaler()
+    # X_train = n.fit_transform(X_train)
+    # X_test = n.transform(X_test)
 
     lr = LogisticRegression(penalty='l2', C=0.2, solver='lbfgs')
     # lr = SGDClassifier(loss='log', penalty='elasticnet', l1_ratio = 0.15, random_state=17,class_weight={0:0.4, 1:0.6})
