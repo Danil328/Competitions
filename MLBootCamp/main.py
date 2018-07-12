@@ -189,7 +189,7 @@ elif ACTION == 'cloud_dict':
 
     ###### PART 2
     print ('read data_part2')
-    df = pd.read_csv(os.path.join(PATH,'train.csv'), skiprows=(1,7000000))
+    df = pd.read_csv(os.path.join(PATH,'train.csv'), nrows=7000000, skiprows=(1,7000000))
     print(df.shape)
 
     print ('preprocessing_part2')
@@ -226,6 +226,46 @@ elif ACTION == 'cloud_dict':
 
     predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
     predicts['target'].to_csv(os.path.join(PATH,'predict_test_part2.csv'), index=False, header=False)
+
+    ###### PART 3
+    print('read data_part3')
+    df = pd.read_csv(os.path.join(PATH, 'train.csv'), skiprows=(1, 14000000))
+    print(df.shape)
+
+    print('preprocessing_part3')
+    dict1 = DictVectorizer(separator=':')
+    dict2 = DictVectorizer(separator=':')
+    dict3 = DictVectorizer(separator=':')
+
+    svd1 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
+    svd2 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
+    svd3 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
+
+    df, dict, svd = dict_vect_preprocessing(df, [dict1, dict2, dict3], [svd1, svd2, svd3])
+    df = df.convert_objects(convert_numeric=True)
+
+    print('train_part3')
+    lr = LogisticRegression(penalty='l2', solver='lbfgs', C=0.2)
+    n = Normalizer()
+    lr.fit(n.fit_transform(df.drop(axis=1, columns=['cuid', 'target'])), df['target'])
+
+    print('read test_part3')
+    df = pd.read_csv(os.path.join(PATH, 'test.csv'))
+
+    print('process test_part3')
+    df, dict, svd = dict_vect_preprocessing(df, dict, svd, is_train=False)
+    df = df.convert_objects(convert_numeric=True)
+
+    out_df = pd.DataFrame()
+    out_df['cuid'] = df.cuid
+
+    print('predict test_part3')
+    df = n.transform(df.drop(axis=1, columns=['cuid']))
+    pred = lr.predict_proba(df)
+    out_df['target'] = pred[:, 1]
+
+    predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
+    predicts['target'].to_csv(os.path.join(PATH, 'predict_test_part3.csv'), index=False, header=False)
 elif ACTION == 'cloud_tfidf':
     test_id = pd.read_csv(os.path.join(PATH, 'mlboot_test.tsv'), delimiter='\t')
     print ('read data')
