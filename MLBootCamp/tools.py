@@ -65,6 +65,9 @@ def base_preprocassing(df, ohe_cat):
 
     df_base['cat_min_le'] = df.groupby(['cuid'])['cat'].min()
 
+    # Кол-во rows
+    df_base['cound_rows'] = df.groupby(['cuid'])['cuid'].count()
+
     return df_base, ohe_cat
 
 
@@ -109,7 +112,7 @@ def dict_vect_preprocessing(df, dict, svd, is_train=True):
         dv_cnt3 = svd[2].transform(dv_cnt3)
 
     return pd.DataFrame(np.hstack([df_dict[cols].values.reshape(-1, len(cols)), dv_cnt1, dv_cnt2, dv_cnt3]),
-                        columns=cols + list(range(dv_cnt1.shape[1] * 3))), dict, svd
+                        columns=cols + list(range(dv_cnt1.shape[1] + dv_cnt2.shape[1] + dv_cnt3.shape[1]))), dict, svd
 
 
 def tfidf_preprocessing(df, tfidf, svd, is_train=True):

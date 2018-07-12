@@ -13,7 +13,7 @@ from mlxtend.feature_selection import SequentialFeatureSelector as SFS
 
 from tools import base_preprocassing, dict_vect_preprocessing, tfidf_preprocessing, split_train_test
 
-ACTION = 'cloud_dict'
+ACTION = 'train'
 PATH = './data/'
 
 
@@ -27,18 +27,26 @@ if ACTION=='train':
     df.columns = ['cuid', 'cat', 'cnt1','cnt2','cnt3','date_diff']
     df = df.join(pd.read_csv(os.path.join(PATH,'mlboot_train_answers.tsv'), delimiter='\t').set_index('cuid'), on='cuid', how='inner')
 
-    print('preprocess')
-    ohe_cat = OneHotEncoder(sparse=False)
-    df, ohe_cat = base_preprocassing(df, ohe_cat)
+    print('preprocessing')
+    # ohe_cat = OneHotEncoder(sparse=False)
+    dict1 = DictVectorizer(separator=':')
+    dict2 = DictVectorizer(separator=':')
+    dict3 = DictVectorizer(separator=':')
+
+    svd1 = TruncatedSVD(n_components=150, random_state=17, n_iter=5)
+    svd2 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
+    svd3 = TruncatedSVD(n_components=50, random_state=17, n_iter=5)
+
+    df, dict, svd = dict_vect_preprocessing(df, [dict1,dict2,dict3], [svd1,svd2,svd3])
     df = df.convert_objects(convert_numeric=True)
 
     print('main part')
-    X_train, X_test, y_train, y_test = train_test_split(df.drop(axis=1, columns=['cuid','target']),df.target, test_size=0.2, random_state=17)
+    X_train, X_test, y_train, y_test = train_test_split(df.drop(axis=1, columns=['cuid','target']), df.target, test_size=0.2, random_state=17)
 
     # pca = PCA(n_components=15)
-    n = StandardScaler()
-    X_train = n.fit_transform(X_train)
-    X_test = n.transform(X_test)
+    # n = StandardScaler()
+    # X_train = n.fit_transform(X_train)
+    # X_test = n.transform(X_test)
 
     # lr = LogisticRegression(penalty='l2', C=0.3, solver='lbfgs')
     # sbfs = SFS(lr,
@@ -149,47 +157,48 @@ elif ACTION == 'union':
     predicts.to_csv(os.path.join(path,'union.csv'), index=False, header=False)
 elif ACTION == 'cloud_dict':
     test_id = pd.read_csv(os.path.join(PATH,'mlboot_test.tsv'), delimiter='\t')
-    # print ('read data')
-    # df = pd.read_csv(os.path.join(PATH,'train.csv'), nrows=7000000)
-    #
-    # print ('preprocessing')
-    # dict1 = DictVectorizer(separator=':')
-    # dict2 = DictVectorizer(separator=':')
-    # dict3 = DictVectorizer(separator=':')
-    #
-    # svd1 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
-    # svd2 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
-    # svd3 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
-    #
-    # df, dict, svd = dict_vect_preprocessing(df, [dict1,dict2,dict3], [svd1,svd2,svd3])
-    #
-    # df = df.convert_objects(convert_numeric=True)
-    # print ('train')
-    # lr = LogisticRegression(penalty='l2', solver='lbfgs', C=0.2)
-    # n = Normalizer()
-    # lr.fit(n.fit_transform(df.drop(axis=1, columns=['cuid','target'])), df['target'])
-    #
-    # print ('read test')
-    # df = pd.read_csv(os.path.join(PATH,'test.csv'))
-    #
-    # print ('process test')
-    # df, dict, svd = dict_vect_preprocessing(df, dict, svd, is_train=False)
-    # df = df.convert_objects(convert_numeric=True)
-    #
-    # out_df = pd.DataFrame()
-    # out_df['cuid'] = df.cuid
-    #
-    # print ('predict test')
-    # df = n.transform(df.drop(axis=1, columns=['cuid']))
-    # pred = lr.predict_proba(df)
-    # out_df['target'] = pred[:, 1]
-    #
-    # predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
-    # predicts['target'].to_csv(os.path.join(PATH,'predict_test_part1.csv'), index=False, header=False)
+    print ('read data')
+    df = pd.read_csv(os.path.join(PATH,'train.csv'), nrows=7000000)
+    print(df.shape)
+
+    print ('preprocessing')
+    dict1 = DictVectorizer(separator=':')
+    dict2 = DictVectorizer(separator=':')
+    dict3 = DictVectorizer(separator=':')
+
+    svd1 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
+    svd2 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
+    svd3 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
+
+    df, dict, svd = dict_vect_preprocessing(df, [dict1,dict2,dict3], [svd1,svd2,svd3])
+
+    df = df.convert_objects(convert_numeric=True)
+    print ('train')
+    lr = LogisticRegression(penalty='l2', solver='lbfgs', C=0.2)
+    n = Normalizer()
+    lr.fit(n.fit_transform(df.drop(axis=1, columns=['cuid','target'])), df['target'])
+
+    print ('read test')
+    df = pd.read_csv(os.path.join(PATH,'test.csv'))
+
+    print ('process test')
+    df, dict, svd = dict_vect_preprocessing(df, dict, svd, is_train=False)
+    df = df.convert_objects(convert_numeric=True)
+
+    out_df = pd.DataFrame()
+    out_df['cuid'] = df.cuid
+
+    print ('predict test')
+    df = n.transform(df.drop(axis=1, columns=['cuid']))
+    pred = lr.predict_proba(df)
+    out_df['target'] = pred[:, 1]
+
+    predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
+    predicts['target'].to_csv(os.path.join(PATH,'predict_test_dict_part1.csv'), index=False, header=False)
 
     ###### PART 2
     print ('read data_part2')
-    df = pd.read_csv(os.path.join(PATH,'train.csv'), nrows=7000000, skiprows=(1,7000000))
+    df = pd.read_csv(os.path.join(PATH,'train.csv'), skiprows=range(1,7000000))
     print(df.shape)
 
     print ('preprocessing_part2')
@@ -225,47 +234,8 @@ elif ACTION == 'cloud_dict':
     out_df['target'] = pred[:, 1]
 
     predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
-    predicts['target'].to_csv(os.path.join(PATH,'predict_test_part2.csv'), index=False, header=False)
+    predicts['target'].to_csv(os.path.join(PATH,'predict_test_dict_part2.csv'), index=False, header=False)
 
-    ###### PART 3
-    print('read data_part3')
-    df = pd.read_csv(os.path.join(PATH, 'train.csv'), skiprows=(1, 14000000))
-    print(df.shape)
-
-    print('preprocessing_part3')
-    dict1 = DictVectorizer(separator=':')
-    dict2 = DictVectorizer(separator=':')
-    dict3 = DictVectorizer(separator=':')
-
-    svd1 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
-    svd2 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
-    svd3 = TruncatedSVD(n_components=100, random_state=17, n_iter=5)
-
-    df, dict, svd = dict_vect_preprocessing(df, [dict1, dict2, dict3], [svd1, svd2, svd3])
-    df = df.convert_objects(convert_numeric=True)
-
-    print('train_part3')
-    lr = LogisticRegression(penalty='l2', solver='lbfgs', C=0.2)
-    n = Normalizer()
-    lr.fit(n.fit_transform(df.drop(axis=1, columns=['cuid', 'target'])), df['target'])
-
-    print('read test_part3')
-    df = pd.read_csv(os.path.join(PATH, 'test.csv'))
-
-    print('process test_part3')
-    df, dict, svd = dict_vect_preprocessing(df, dict, svd, is_train=False)
-    df = df.convert_objects(convert_numeric=True)
-
-    out_df = pd.DataFrame()
-    out_df['cuid'] = df.cuid
-
-    print('predict test_part3')
-    df = n.transform(df.drop(axis=1, columns=['cuid']))
-    pred = lr.predict_proba(df)
-    out_df['target'] = pred[:, 1]
-
-    predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
-    predicts['target'].to_csv(os.path.join(PATH, 'predict_test_part3.csv'), index=False, header=False)
 elif ACTION == 'cloud_tfidf':
     test_id = pd.read_csv(os.path.join(PATH, 'mlboot_test.tsv'), delimiter='\t')
     print ('read data')
