@@ -13,7 +13,7 @@ from mlxtend.feature_selection import SequentialFeatureSelector as SFS
 
 from tools import base_preprocassing, dict_vect_preprocessing, tfidf_preprocessing, split_train_test
 
-ACTION = 'train'
+ACTION = 'ansamblirovat'
 PATH = './data/'
 
 
@@ -235,7 +235,6 @@ elif ACTION == 'cloud_dict':
 
     predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
     predicts['target'].to_csv(os.path.join(PATH,'predict_test_dict_part2.csv'), index=False, header=False)
-
 elif ACTION == 'cloud_tfidf':
     test_id = pd.read_csv(os.path.join(PATH, 'mlboot_test.tsv'), delimiter='\t')
     print ('read data')
@@ -277,8 +276,8 @@ elif ACTION == 'cloud_tfidf':
     predicts = test_id.join(out_df.set_index('cuid'), on='cuid', how='inner')
     predicts['target'].to_csv(os.path.join(PATH, 'predict_test_tfidf.csv'), index=False, header=False)
 elif ACTION == 'ansamblirovat':
-    df1 = pd.read_csv(os.path.join(PATH, 'predict_test_dict.csv'), header=None)
-    df2 = pd.read_csv(os.path.join(PATH, 'predict_test_tfidf.csv'), header=None)
+    df1 = pd.read_csv(os.path.join('sub', 'predict_test_dict_part1.csv'), header=None)
+    df2 = pd.read_csv(os.path.join('sub', 'predict_test_dict_part2.csv'), header=None)
 
-    union_df = df1[0] * 0.6 + df2[0] * 0.4
-    union_df.to_csv(os.path.join(PATH, 'dict_and_tfidf.csv'), index=False, header=False)
+    union_df = df1[0] * 0.85 + df2[0] * 0.15
+    union_df.to_csv(os.path.join('sub', 'dict_1_2.csv'), index=False, header=False)
